@@ -40,30 +40,19 @@
                 // Generar una nueva pareja de clave privada (y pública)
                 $files_name = "sign-".rand(0, 99999999).date("-ymdhis");
                 if(!file_exists("{$this->crt_route}{$files_name}.cer") || !file_exists("{$this->key_route}$files_name.key")){
-                    
                     // Genetate a new key
                     $privkey = openssl_pkey_new(array(
                         "private_key_bits" => 2048,
                         "private_key_type" => OPENSSL_KEYTYPE_RSA,
                     ));
-                    
-                    // Export the private key to string and save the password
-                    openssl_pkey_export($privkey, $pkeyout); // and var_dump($pkeyout)
+                    openssl_pkey_export($privkey, $pkeyout); // Export the private key to string and save the password
                     $get_pub_key = openssl_pkey_get_details($privkey);
-                    openssl_private_decrypt($get_pub_key,$newsource,$pkeyout);
-
-                    // We cretare a new certificate with the private key
-                    $csr = openssl_csr_new($dn, $privkey);
-                    // Create a new sign for the certificate with a 3 year of live
-                    $sscert = openssl_csr_sign($csr, null, $privkey, 365*3);
-                    // Exporto to strign the certificate
-                    openssl_csr_export($csr, $csrout); // and var_dump($csrout)
-                    // Create a new x509 
-                    openssl_x509_export($sscert, $certout); // and var_dump($certout)
-                    
-                    // We create a new files with the cer, pub key and priv key
-                    file_put_contents("{$this->crt_route}{$files_name}.cer", $certout);
-                    file_put_contents("{$this->key_route}{$files_name}.key", $newsource);
+                    $csr = openssl_csr_new($dn, $privkey); // We cretare a new certificate with the private key
+                    $sscert = openssl_csr_sign($csr, null, $privkey, 365*3); // Create a new sign for the certificate with a 3 year of live
+                    openssl_csr_export($csr, $csrout); // Exporto to strign the certificate
+                    openssl_x509_export($sscert, $certout); // Create a new x509 
+                    file_put_contents("{$this->crt_route}{$files_name}.cer", $certout); // We create a new files with the cer, pub key and priv key
+                    file_put_contents("{$this->key_route}{$files_name}.key", $pkeyout);
                     file_put_contents("{$this->pbkey_route}{$files_name}.pem", $get_pub_key['key']);
                     // Return the data for the user peticion
                     return (array) [
@@ -82,34 +71,37 @@
         }
         
         /**
-         * 
+         * Se genera una nueva firma, retorna una la firma validada
+         * @param string $cer_data - Debe tener el certificado generado anteriormente en formato string, es decir debes enviar la cadena no el archivo
+         * @param string $private_key - Debe tener la llave privada en formato string
+         * @param string $pub_key - Debe tener una llave publica en formato string
+         * @return string Esto te regresara la firma verificada y si se tiene un error regresara el codigo: 3001 - No se puede validar esta firma, 3002 - La llave privada y el certificado no coinciden
          */
         public function create_sign(string $cer_data, string $private_key, string $pub_key, string $pass, array $data) : string{
             try{
-                $data = implode(",", $data);
+                $dataForSign = implode(",", $data);
                 // Validamos que el certificado corresponda a la llave privada generada
-                $keyPassphrase = $pass;
-                $keyCheckData = [$private_key, $keyPassphrase];
-                $verify_priv_key = openssl_x509_check_private_key($cer_data, $keyCheckData); 
+                // Creamos un array que contiene la llave privada y su contraseña
+                $keyCheckData = [$private_key, null];
+                $verify_priv_key = openssl_x509_check_private_key($cer_data, $keyCheckData);
                 if($verify_priv_key == 1){
-                    // crear la firma
-                    $response = '';
-                    openssl_sign($data, $firma, $private_key, OPENSSL_ALGO_SHA256);
-                    if($this->verify_sign($pub_key, $data, $firma)){
-                        $response = $firma;
-                    }
-                    else{
-                        $response = "Ocurrio un error no se puede validar";
-                    }
-                    return (string) $private_key;
+                    openssl_sign($dataForSign, $firma, $private_key, OPENSSL_ALGO_SHA256);    
+                    return (string) ($this->verify_sign($pub_key, $dataForSign, $firma)) ? $firma : "3001";
                 }else{
-                    return "ya valio xd";
-                }
+                    return (string) "La llave privada y el certificado no coinciden";
+                }   
             }catch(\Exception $e){
                 print("You have an error in create_sign method: {$e->getMessage()}");
             }
         }
 
+        /**
+         * Verifica una firma con la llave publica y la encrptación
+         * @param string $pub_key
+         * @param string $datos
+         * @param string $sign
+         * @return bool
+         */
         private function verify_sign(string $pub_key, string $datos, $sign) : bool{
             return (bool) openssl_verify($datos, $sign, $pub_key, "sha256WithRSAEncryption");
         }
