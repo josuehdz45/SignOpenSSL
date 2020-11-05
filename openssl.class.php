@@ -88,7 +88,7 @@
                     openssl_sign($dataForSign, $firma, $private_key, OPENSSL_ALGO_SHA256);    
                     return (string) ($this->verify_sign($pub_key, $dataForSign, $firma)) ? $firma : "3001";
                 }else{
-                    return (string) "La llave privada y el certificado no coinciden";
+                    return (string) "3002";
                 }   
             }catch(\Exception $e){
                 print("You have an error in create_sign method: {$e->getMessage()}");

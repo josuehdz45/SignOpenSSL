@@ -13,7 +13,7 @@
      * @param 5 - Datos a firmar
      * 
      * Esto te regresara un firma en formato binario, por lo cual es recomendable ponerlo en formato texto o bien encriptarlo
-    */
+     */
     include "../openssl.class.php";
     $generate_sign = new \Avispaa\OpensslGenerate("../crt/", "../prkey/", "../pbkey/");
     print_r($generate_sign->create_sign(
